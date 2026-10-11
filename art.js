@@ -67,6 +67,8 @@ function withShadow(blur, offsetY, color, drawFn) {
 }
 
 function drawText(text, x, y, size, color, align) {
+  // الكلام العربي بيتكتب من اليمين لليسار (عشان الأرقام وEGP تتظبط صح)
+  ctx.direction = /[\u0600-\u06FF]/.test(text) ? "rtl" : "ltr";
   ctx.fillStyle = color;
   ctx.font = "bold " + size + "px " + FONT;
   ctx.textAlign = align || "center";
@@ -306,211 +308,7 @@ function drawBurger(cx, baseY, layers, scale) {
 
 // ---------- الشخصيات (الزباين) ----------
 
-const CHARACTERS = [
-  { id: "man", style: "short", skin: "#f3d9b4", skinDark: "#d9b88c", hair: "#2b1a12",
-    shirt: ["#e23b34", "#a81f1b"], collar: true, mul: 1.0, say: "لو سمحت عايز:" },
-  { id: "girl-hijab", style: "hijab", skin: "#f6dcc0", skinDark: "#e0bf9c", hair: "#2b1a12",
-    scarf: ["#2f8f8a", "#1f635f"], shirt: ["#f2b134", "#c98a1a"], mul: 1.1, say: "ممكن أطلب؟" },
-  { id: "girl-long", style: "long", skin: "#f0cfa8", skinDark: "#d8b088", hair: "#4a2a18",
-    shirt: ["#7d5be0", "#4a2fa0"], mul: 1.0, say: "من فضلك:" },
-  { id: "man-beard", style: "short", beard: true, glasses: true, skin: "#e0b88a", skinDark: "#c49a6c",
-    hair: "#1a1a1a", mouth: "#f0b8a8", shirt: ["#3d6fbf", "#274a88"], collar: true, mul: 0.9, say: "عايز:" },
-  { id: "grandpa", style: "bald", glasses: true, mustache: "#eeeeee", wrinkles: true, skin: "#e6c39a",
-    skinDark: "#c9a37a", hair: "#eeeeee", brow: "#9a9a9a", shirt: ["#c9b48a", "#a08a5c"], collar: true,
-    mul: 1.4, say: "يا ابني عايز:" },
-  { id: "grandma", style: "hijab", wrinkles: true, skin: "#ecd0ae", skinDark: "#d2b08a", hair: "#dddddd",
-    brow: "#9a9a9a", scarf: ["#d9cfe8", "#b3a5cf"], shirt: ["#8a5fb0", "#613b86"], mul: 1.4,
-    say: "عايزة يا حبيبي:" }
-];
 
-function drawCustomerRaw(c) {
-  const look = c.look;
-  const ratio = c.patience / c.maxPatience;
-  const hijab = look.style === "hijab";
-  const faceRx = hijab ? 56 : 62;
-  const faceRy = hijab ? 62 : 70;
-  const faceCy = hijab ? 304 : 298;
-
-  // خلفية الراس (شعر طويل أو طرحة)
-  if (look.style === "long") {
-    fillRound(566, 236, 148, 190, 56, look.hair);
-  }
-  if (hijab) {
-    drawEllipse(640, 300, 82, 94, look.scarf[1]);
-  }
-
-  // رقبة وجسم
-  fillRound(618, 340, 44, 50, 12, look.skinDark);
-  withShadow(20, 8, "rgba(0,0,0,0.4)", function () {
-    fillRound(540, 372, 200, 170, 54, vGradient(372, 542, look.shirt[0], look.shirt[1]));
-  });
-  strokeRound(540, 372, 200, 170, 54, "rgba(58,33,18,0.6)", 3);
-  if (look.collar) {
-    ctx.fillStyle = "#fff3df";
-    ctx.beginPath();
-    ctx.moveTo(606, 372);
-    ctx.lineTo(640, 414);
-    ctx.lineTo(674, 372);
-    ctx.closePath();
-    ctx.fill();
-  }
-  if (hijab) {
-    drawEllipse(640, 404, 86, 50, look.scarf[0]);
-    ctx.strokeStyle = look.scarf[1];
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(600, 392); ctx.lineTo(590, 436);
-    ctx.moveTo(680, 392); ctx.lineTo(690, 436);
-    ctx.stroke();
-  }
-
-  // الوش
-  if (!hijab) {
-    drawEllipse(578, 304, 11, 18, look.skinDark);
-    drawEllipse(702, 304, 11, 18, look.skinDark);
-  }
-  const skin = ctx.createRadialGradient(625, 280, 10, 640, faceCy, 80);
-  skin.addColorStop(0, look.skin);
-  skin.addColorStop(1, look.skinDark);
-  drawEllipse(640, faceCy, faceRx, faceRy, skin);
-  ctx.strokeStyle = "rgba(58,33,18,0.55)";
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.ellipse(640, faceCy, faceRx, faceRy, 0, 0, Math.PI * 2);
-  ctx.stroke();
-
-  // الشعر أو الطرحة قدام
-  if (look.style === "short" || look.style === "long") {
-    ctx.fillStyle = look.hair;
-    ctx.beginPath();
-    ctx.ellipse(640, 262, 66, 46, 0, Math.PI, Math.PI * 2);
-    ctx.fill();
-  } else if (look.style === "bald") {
-    drawEllipse(580, 290, 10, 24, look.hair);
-    drawEllipse(700, 290, 10, 24, look.hair);
-    drawEllipse(622, 246, 18, 7, "rgba(255,255,255,0.3)");
-  } else {
-    ctx.fillStyle = look.scarf[0];
-    ctx.beginPath();
-    ctx.ellipse(640, 264, 64, 36, 0, Math.PI, Math.PI * 2);
-    ctx.fill();
-    drawEllipse(640, 366, 48, 14, look.scarf[0]);
-  }
-
-  // دقن
-  if (look.beard) {
-    ctx.fillStyle = look.hair;
-    ctx.beginPath();
-    ctx.ellipse(640, 330, 60, 46, 0, 0, Math.PI);
-    ctx.fill();
-  }
-
-  // تجاعيد
-  if (look.wrinkles) {
-    ctx.strokeStyle = "rgba(0,0,0,0.2)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    if (!hijab) {
-      ctx.moveTo(612, 260); ctx.lineTo(668, 260);
-      ctx.moveTo(618, 269); ctx.lineTo(662, 269);
-    }
-    ctx.moveTo(594, 298); ctx.lineTo(586, 294);
-    ctx.moveTo(594, 303); ctx.lineTo(586, 306);
-    ctx.moveTo(686, 298); ctx.lineTo(694, 294);
-    ctx.moveTo(686, 303); ctx.lineTo(694, 306);
-    ctx.stroke();
-  }
-
-  // العيون
-  const blink = game.time % 4 < 0.12 ? 0.15 : 1;
-  drawEllipse(615, 300, 10, 8 * blink, "#ffffff");
-  drawEllipse(665, 300, 10, 8 * blink, "#ffffff");
-  drawEllipse(615, 301, 4.5, 4.5 * blink, "#2b1a12");
-  drawEllipse(665, 301, 4.5, 4.5 * blink, "#2b1a12");
-  if (look.glasses) {
-    ctx.strokeStyle = "#2b1d14";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(615, 300, 15, 0, Math.PI * 2);
-    ctx.moveTo(694, 300);
-    ctx.arc(665, 300, 15, 0, Math.PI * 2);
-    ctx.moveTo(630, 300); ctx.lineTo(650, 300);
-    ctx.stroke();
-  }
-
-  // مناخير
-  ctx.strokeStyle = "rgba(0,0,0,0.22)";
-  ctx.lineWidth = 3;
-  ctx.lineCap = "round";
-  ctx.beginPath();
-  ctx.moveTo(640, 306); ctx.lineTo(635, 320); ctx.lineTo(645, 320);
-  ctx.stroke();
-
-  // الحواجب حسب مزاج الزبون
-  ctx.strokeStyle = look.brow || look.hair;
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  if (ratio > 0.25) {
-    ctx.moveTo(601, 281); ctx.lineTo(629, 281);
-    ctx.moveTo(651, 281); ctx.lineTo(679, 281);
-  } else {
-    ctx.moveTo(601, 274); ctx.lineTo(629, 286);
-    ctx.moveTo(679, 274); ctx.lineTo(651, 286);
-  }
-  ctx.stroke();
-
-  if (look.mustache) {
-    fillRound(614, 311, 52, 10, 5, look.mustache);
-  }
-
-  // الفم حسب المزاج
-  ctx.strokeStyle = look.mouth || "#7a2f22";
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  if (ratio > 0.5) {
-    ctx.arc(640, 322, 16, 0.15 * Math.PI, 0.85 * Math.PI);
-  } else if (ratio > 0.25) {
-    ctx.moveTo(626, 334); ctx.lineTo(654, 334);
-  } else {
-    ctx.arc(640, 346, 16, 1.15 * Math.PI, 1.85 * Math.PI);
-  }
-  ctx.stroke();
-
-  // فقاعة الكلام (بتعرض الطلب كله)
-  withShadow(14, 4, "rgba(0,0,0,0.35)", function () {
-    fillRound(470, 118, 340, 64, 18, "#fff3df");
-  });
-  ctx.fillStyle = "#fff3df";
-  ctx.beginPath();
-  ctx.moveTo(622, 180);
-  ctx.lineTo(658, 180);
-  ctx.lineTo(640, 200);
-  ctx.closePath();
-  ctx.fill();
-  if (c.state === "ordering") {
-    drawText(look.say, 640, 135, 13, "#6b4a32");
-    const lines = c.order.lines;
-    if (c.order.text.length > 30) {
-      const half = Math.ceil(lines.length / 2);
-      drawText(lines.slice(0, half).join(" + "), 640, 154, 15, "#2b1d14");
-      drawText(lines.slice(half).join(" + "), 640, 174, 15, "#2b1d14");
-    } else {
-      drawText(c.order.text, 640, 164, 18, "#2b1d14");
-    }
-  } else {
-    drawText("مستني طلبي...", 640, 160, 22, "#2b1d14");
-  }
-
-  // شريط الصبر
-  fillRound(540, 206, 200, 12, 6, "#2b1d14");
-  let barColor = "#5aa335";
-  if (ratio <= 0.25) {
-    barColor = "#d62f2a";
-  } else if (ratio <= 0.5) {
-    barColor = "#f2b134";
-  }
-  fillRound(540, 206, Math.max(12, 200 * ratio), 12, 6, barColor);
-}
 
 // ---------- بطاطس ومشروبات وصينية ----------
 
@@ -558,6 +356,9 @@ function drawCup(cx, baseY, scale, drink, fill) {
   ctx.closePath();
   ctx.fillStyle = "#fff3df";
   ctx.fill();
+  ctx.strokeStyle = "rgba(58,33,18,0.65)";
+  ctx.lineWidth = Math.max(1.2, 2 * s);
+  ctx.stroke();
   if (drink && f > 0) {
     const h = 46 * s * f;
     const hw = 16 * s + 6 * s * (h / (62 * s));
@@ -642,24 +443,6 @@ function drawLockOverlay(x, y, w, h, r, label) {
 }
 
 // زبون صغير قاعد على ترابيزة وبياكل
-function drawMiniDiner(x, tableY, look, t) {
-  const bob = Math.sin(t * 6) * 2;
-  const hijab = look.style === "hijab";
-  fillRound(x - 22, tableY - 38 + bob, 44, 40, 14, look.shirt[0]);
-  const hy = tableY - 54 + bob;
-  if (hijab) {
-    drawEllipse(x, hy, 20, 23, look.scarf[1]);
-  }
-  drawEllipse(x, hy + 1, hijab ? 14 : 16, hijab ? 16 : 18, look.skin);
-  ctx.fillStyle = hijab ? look.scarf[0] : look.hair;
-  if (look.style !== "bald") {
-    ctx.beginPath();
-    ctx.ellipse(x, hy - 4, hijab ? 16 : 18, hijab ? 11 : 12, 0, Math.PI, Math.PI * 2);
-    ctx.fill();
-  }
-  drawEllipse(x - 6, hy + 2, 2, 2, "#2b1a12");
-  drawEllipse(x + 6, hy + 2, 2, 2, "#2b1a12");
-}
 
 // ---------- لمسات الجرافيكس ----------
 
@@ -671,22 +454,15 @@ function strokeRound(x, y, w, h, r, color, lw) {
 }
 
 // الزبون بيدخل من الشمال وبيتنفس وهو واقف
-function drawCustomer(c) {
-  const e = c.enter === undefined ? 1 : c.enter;
-  const ease = 1 - Math.pow(1 - e, 3);
-  ctx.save();
-  ctx.translate(-(1 - ease) * 320, Math.sin(game.time * 2) * 1.5 + Math.abs(Math.sin(game.time * 12)) * (1 - ease) * 8);
-  drawCustomerRaw(c);
-  ctx.restore();
-}
 
 // ضلال خفيفة على أطراف الشاشة
-function drawVignette() {
+function drawVignette(fromY) {
+  const y0 = fromY === undefined ? 64 : fromY;
   const g = ctx.createRadialGradient(640, 380, 380, 640, 380, 820);
   g.addColorStop(0, "rgba(0,0,0,0)");
   g.addColorStop(1, "rgba(10,5,2,0.45)");
   ctx.fillStyle = g;
-  ctx.fillRect(0, 64, 1280, 656);
+  ctx.fillRect(0, y0, 1280, 720 - y0);
 }
 
 // بخار طالع من الأكل
@@ -698,4 +474,57 @@ function drawSteam(x, y, strength) {
     const r = 6 + phase * 12;
     drawEllipse(px, py, r, r, "rgba(255,255,255," + ((1 - phase) * 0.35 * strength).toFixed(3) + ")");
   }
+}
+
+// ---------- أدوات جرافيكس مشتركة (الجيل التاني) ----------
+
+// مستطيل مدور بخط خارجي
+function outlinedRound(x, y, w, h, r, fill, lw, stroke) {
+  roundRectPath(x, y, w, h, r);
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.strokeStyle = stroke || "rgba(40,22,12,0.75)";
+  ctx.lineWidth = lw || 3;
+  ctx.stroke();
+}
+
+// تدريج ستانلس ستيل
+function metalGradient(y1, y2) {
+  const g = ctx.createLinearGradient(0, y1, 0, y2);
+  g.addColorStop(0, "#eef2f5");
+  g.addColorStop(0.35, "#c3cad0");
+  g.addColorStop(0.7, "#9aa3ab");
+  g.addColorStop(1, "#7d868e");
+  return g;
+}
+
+// لمعة فوق الشكل
+function drawGloss(x, y, w, h, r) {
+  fillRound(x + 3, y + 3, w - 6, h * 0.42, r, "rgba(255,255,255,0.22)");
+}
+
+function drawBolt(x, y) {
+  drawEllipse(x, y, 3.5, 3.5, "#6b7580");
+  drawEllipse(x - 1, y - 1, 1.2, 1.2, "rgba(255,255,255,0.7)");
+}
+
+// بيقسم الكلام لسطور على قد العرض
+function wrapText(text, maxW, size) {
+  ctx.font = "bold " + size + "px " + FONT;
+  const words = text.split(" ");
+  const lines = [];
+  let cur = "";
+  for (let i = 0; i < words.length; i++) {
+    const test = cur ? cur + " " + words[i] : words[i];
+    if (ctx.measureText(test).width > maxW && cur) {
+      lines.push(cur);
+      cur = words[i];
+    } else {
+      cur = test;
+    }
+  }
+  if (cur) {
+    lines.push(cur);
+  }
+  return lines;
 }

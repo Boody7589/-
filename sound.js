@@ -97,11 +97,11 @@ const SFX = {
   start: function () { tone(392, 0, 0.12, "triangle", 0.3); tone(523, 0.12, 0.12, "triangle", 0.3); tone(659, 0.24, 0.12, "triangle", 0.3); tone(784, 0.36, 0.4, "triangle", 0.3); }
 };
 
-function playSound(name) {
+function playSound(name, arg) {
   if (audioCtx === null || !audioSettings.sfx) {
     return;
   }
-  SFX[name]();
+  SFX[name](arg);
 }
 
 // level من 0 لـ 1
@@ -174,4 +174,19 @@ SFX.pour = function () {
 };
 SFX.page = function () {
   noiseBurst(0, 0.18, 3500, 0.25);
+};
+
+// صوت كلام الزبون (زقزقة مضحكة، طبقتها حسب الشخصية)
+SFX.talk = function (pitch) {
+  const p = pitch || 1;
+  for (let i = 0; i < 4; i++) {
+    tone((260 + Math.random() * 120) * p, i * 0.07, 0.08, "square", 0.08);
+  }
+};
+// صوت البنك (كاش)
+SFX.chaching = function () {
+  tone(1320, 0, 0.08, "triangle", 0.25);
+  tone(1760, 0.08, 0.08, "triangle", 0.25);
+  tone(2093, 0.16, 0.35, "triangle", 0.25);
+  noiseBurst(0, 0.12, 5000, 0.2);
 };

@@ -1,4 +1,4 @@
-// ===== game.js: منطق اللعبة (Milestone 6: التطويرات والتقييمات والصوصات) =====
+// ===== game.js: منطق اللعبة (Milestone 8: طلبين مع بعض + البنك + زباين مضحكين) =====
 
 // ---------- ثوابت ----------
 const MAX_PATIENCE = 40;      // صبر الزبون العادي بالثواني
@@ -10,6 +10,7 @@ const FRY_BURNT_AFTER = 7;    // البطاطس: بعد 7 ثواني بتتحر�
 const FRY_MAX = 10;
 const DINE_TIME = 22;         // الزبون بياكل على الترابيزة كام ثانية
 const DINE_TIP = 10;          // بقشيش الأكل على الترابيزة
+const TALK_SPEED = 32;        // سرعة كتابة كلام الزبون (حرف في الثانية)
 
 const DAY_START = 540;        // الساعة 9:00 (بالدقايق)
 const DAY_END = 1020;         // الساعة 5:00 م
@@ -19,8 +20,14 @@ const DELIVERY_MINUTES = 60;
 const TRAY_MAX = 6;
 const SAVE_KEY = "burgerLegacySave";
 
-const PLATE_X = 620;
 const PLATE_BASE_Y = 616;
+
+// ---------- البنك ----------
+const BANK_INTEREST = 0.01;   // فايدة يومية على رصيد البنك
+const LOAN_RATE = 0.10;       // فايدة القرض (مرة واحدة)
+const BANK_AMOUNTS = [100, 500, 1000, 2000];
+const LOAN_AMOUNTS = [500, 1000, 2000, 5000];
+const LOAN_TERMS = [3, 5, 7];
 
 // ---------- المنيو ----------
 // recipe = الأساس من غير الصوص (الصوص بيتحدد حسب طلب كل زبون)
@@ -33,6 +40,12 @@ const MENU = {
 };
 const LAYER_NAMES = { bun: "رغيف", patty: "باتي", cheese: "جبنة" };
 
+// ---------- مكان الزباين والأطباق (واحد أو اتنين) ----------
+const SLOT_LAYOUTS = {
+  1: { cust: [640], tray: [690], plate: [620], plateScale: 0.95 },
+  2: { cust: [490, 790], tray: [490, 790], plate: [575, 705], plateScale: 0.72 }
+};
+
 // ---------- أماكن في المطبخ ----------
 const BUN_BIN = { x: 245, y: 470, w: 112, h: 130 };
 const CHEESE_BIN = { x: 368, y: 470, w: 112, h: 130 };
@@ -44,19 +57,20 @@ const SAUCES = [
   { key: "mayo", label: "مايونيز", x: 530, color: "#f5ecd2", dark: "#d9cba3", cap: "#d62f2a" },
   { key: "mustard", label: "مسطردة", x: 660, color: "#e8b21a", dark: "#b88a0c", cap: "#fff3df" }
 ];
+const SAUCE_KEYS = ["ketchup", "mayo", "mustard"];
 
 // ---------- محطة البطاطس والمشروبات ----------
 const POTATO_BIN = { x: 150, y: 470, w: 130, h: 130 };
-const FRYER_SLOTS = [{ x: 410, y: 530 }, { x: 540, y: 530 }];
+const FRYER_SLOTS = [{ x: 410, y: 536 }, { x: 540, y: 536 }];
 const TRAY_PREVIEW = { x: 735, y: 598 };
 const SODA = {
   stack: { x: 845, y: 490, w: 100, h: 110 },
-  cupSlot: { x: 1030, y: 470, w: 120, h: 130 },
-  colaBtn: { x: 985, y: 320, w: 110, h: 56 },
-  orangeBtn: { x: 1105, y: 320, w: 110, h: 56 }
+  cupSlot: { x: 1030, y: 474, w: 120, h: 126 },
+  colaBtn: { x: 985, y: 392, w: 110, h: 30 },
+  orangeBtn: { x: 1105, y: 392, w: 110, h: 30 }
 };
 
-// ---------- الترابيزات (مكان كل ترابيزة في الكاونتر) ----------
+// ---------- الترابيزات (ورا في المحل) ----------
 const TABLE_SPOTS = [{ x: 120, y: 388, s: 0.72 }, { x: 265, y: 388, s: 0.72 }, { x: 1010, y: 388, s: 0.72 }, { x: 1155, y: 388, s: 0.72 }];
 
 // المكونات اللي بتتباع في اللابتوب (سعر الحزمة بالجنيه)
@@ -84,20 +98,17 @@ const UPGRADES = [
   { key: "freezer", name: "سعة الفريزر", desc: "تخزّن باتي أكتر", max: 3, prices: [500, 800, 1200] },
   { key: "stove", name: "عين بوتاجاز زيادة", desc: "تطبخ 3 باتيهات مرة واحدة", max: 1, prices: [700] },
   { key: "fryer", name: "سبت قلاية تاني", desc: "تقلي في سبتين", max: 1, prices: [600], requires: "fries" },
-  { key: "soda", name: "سرعة ماكينة المشروبات", desc: "الكوباية تتملي أسرع", max: 2, prices: [500, 900], requires: "drinks" },
+  { key: "soda", name: "سرعة المشروبات", desc: "الكوباية تتملي أسرع", max: 2, prices: [500, 900], requires: "drinks" },
   { key: "warm", name: "حفظ الحرارة", desc: "الأكل بعد ما يستوي مبيتحرقش", max: 1, prices: [1500] },
   { key: "bell", name: "منبه الاستواء", desc: "جرس يرن لما الأكل يستوي", max: 1, prices: [400] },
-  { key: "double", name: "طلبين مع بعض", desc: "جاي في ميلستون 8", max: 0, prices: [] }
+  { key: "double", name: "طلبين مع بعض", desc: "زبونين وطبقين في نفس الوقت", max: 1, prices: [1800] }
 ];
 const FREEZER_CAPS = [20, 35, 50, 70];
 const SODA_TIMES = [3.0, 2.2, 1.5];
 
-// ---------- أسماء الزباين والتقييمات ----------
-const CHARACTER_NAMES = {
-  man: "أحمد", "girl-hijab": "مريم", "girl-long": "سارة", "man-beard": "كريم", grandpa: "عم حسن", grandma: "تيتة سعاد"
-};
+// ---------- التقييمات ----------
 const REVIEW_TEXTS = {
-  5: ["برجر خرافي! هرجع تاني", "أحلى برجر في المنطقة", "سريع وطعمه جامد جداً", "الأكل ساخن والخدمة ممتازة"],
+  5: ["برجر خرافي! هرجع تاني", "أحلى برجر في المنطقة", "سريع وطعمه جامد جداً", "الأكل ساخن والخدمة ممتازة", "صاحب المطعم ده مجنون بس الأكل عبقري"],
   4: ["حلو بس استنيت شوية", "طعمه كويس والخدمة تمام", "برجر حلو والسعر مناسب"],
   3: ["عادي، استنيت كتير شوية", "مش وحش بس مش حاجة مميزة"],
   2: ["الأكل مش زي ما طلبت", "كنت متوقع أحسن من كده"],
@@ -111,17 +122,15 @@ const PROBLEM_REVIEW = {
 };
 const LOADING_TIPS = [
   "الباتي بيتحرق لو سبته كتير على البوتاجاز!",
-  "بعض الزباين بيطلبوا صوص معين وبعضهم من غير صوص",
+  "كل زبون عنده رأيه في الصوص: نوع معين أو من غير صوص خالص",
   "الترابيزات بتزود البقشيش والتقييم",
+  "ادخل البنك وخد قرض لو محتاج تتطور بسرعة",
   "دوس F في أي وقت لملء الشاشة",
   "اطلب المكونات من اللابتوب قبل ما تخلص"
 ];
 
-// أماكن الضغط
+// ---------- أماكن الضغط ----------
 const laptopScreenBox = { x: 140, y: 420, w: 210, h: 135 };
-const backButtonBox = { x: 1040, y: 100, w: 200, h: 56 };
-const takeOrderBox = { x: 540, y: 645, w: 240, h: 56 };
-const clearTrayBox = { x: 800, y: 645, w: 190, h: 56 };
 const toKitchenBox = { x: 1010, y: 645, w: 230, h: 56 };
 const kitchenBackBox = { x: 40, y: 660, w: 230, h: 46 };
 const discardBox = { x: 440, y: 660, w: 150, h: 46 };
@@ -129,9 +138,25 @@ const sendBox = { x: 610, y: 660, w: 230, h: 46 };
 const toSidesBox = { x: 860, y: 660, w: 380, h: 46 };
 const sidesToCounterBox = { x: 300, y: 660, w: 230, h: 46 };
 const orderButtonBox = { x: 730, y: 566, w: 200, h: 48 };
+const BOOK_BOX = { x: 945, y: 515, w: 150, h: 95 };
 
-// كتاب المنيو اللي على الكاونتر
-const BOOK_BOX = { x: 835, y: 515, w: 150, h: 95 };
+function slotActionBox(i) {
+  return { x: layout().cust[i] - 100, y: 645, w: 200, h: 56 };
+}
+
+function clearTrayBox(i) {
+  return { x: layout().tray[i] - 45, y: 617, w: 90, h: 24 };
+}
+
+function shopRowY(i) {
+  return 230 + i * 62;
+}
+
+// مكان كارت التطوير رقم i (3 أعمدة)
+function upgradeCardBox(i) {
+  const cols = [884, 602, 320];
+  return { x: cols[i % 3], y: 214 + Math.floor(i / 3) * 96, w: 266, h: 88 };
+}
 
 // تطبيقات نظام Burger OS في اللابتوب
 const OS_APPS = [
@@ -139,9 +164,10 @@ const OS_APPS = [
   { key: "upgrades", name: "التطويرات", color: "#5aa335" },
   { key: "reviews", name: "التقييمات", color: "#d62f2a" },
   { key: "reports", name: "التقارير", color: "#3d6fbf" },
+  { key: "bank", name: "البنك", color: "#1f8a6a" },
   { key: "staff", name: "التوظيف", color: "#6b7580", locked: true }
 ];
-const OS_ICON_POS = [{ x: 330, y: 255 }, { x: 640, y: 255 }, { x: 950, y: 255 }, { x: 485, y: 425 }, { x: 795, y: 425 }];
+const OS_ICON_POS = [{ x: 330, y: 262 }, { x: 640, y: 262 }, { x: 950, y: 262 }, { x: 330, y: 446 }, { x: 640, y: 446 }, { x: 950, y: 446 }];
 
 function appIconBox(i) {
   const c = OS_ICON_POS[i];
@@ -149,41 +175,27 @@ function appIconBox(i) {
 }
 
 function dockBox(i) {
-  return { x: 136, y: 170 + i * 58, w: 150, h: 50 };
+  return { x: 136, y: 168 + i * 52, w: 150, h: 44 };
 }
 
-function openApp(a) {
-  if (a.locked) {
-    showMessage("التوظيف جاي في ميلستون قدام", "#f2b134");
-    return;
-  }
-  game.laptopTab = a.key;
-  if (a.key === "reviews") {
-    game.unreadReviews = 0;
-  }
-  playSound("click");
+// أماكن البنك
+function bankSubBox(i) {
+  return { x: 1150 - 120 * (i + 1) - 10 * i, y: 166, w: 120, h: 34 };
 }
-
-// صفحات كتاب المنيو (بتظهر بس الحاجات اللي انت فتحتها)
-function bookSpreads() {
-  const spreads = ["burgers", "sauces"];
-  if (game.up.fries > 0) {
-    spreads.push("sides");
-  }
-  if (game.up.drinks > 0) {
-    spreads.push("drinks");
-  }
-  return spreads;
+function bankAmountBox(i) {
+  return { x: 1150 - 108 * (i + 1) - 12 * i, y: 276, w: 108, h: 44 };
 }
-
-function shopRowY(i) {
-  return 230 + i * 62;
+const BANK_DEPOSIT_BOX = { x: 922, y: 346, w: 228, h: 54 };
+const BANK_WITHDRAW_BOX = { x: 670, y: 346, w: 228, h: 54 };
+function loanAmountBox(i) {
+  return { x: 1150 - 104 * (i + 1) - 10 * i, y: 268, w: 104, h: 42 };
 }
-
-// مكان كارت التطوير رقم i (عمودين)
-function upgradeCardBox(i) {
-  const cols = [884, 602, 320];
-  return { x: cols[i % 3], y: 214 + Math.floor(i / 3) * 96, w: 266, h: 88 };
+function loanTermBox(i) {
+  return { x: 1150 - 140 * (i + 1) - 12 * i, y: 342, w: 140, h: 40 };
+}
+const LOAN_TAKE_BOX = { x: 704, y: 484, w: 446, h: 54 };
+function loanPayBox(i) {
+  return { x: 346, y: 250 + i * 104 + 66, w: 130, h: 26 };
 }
 
 function defaultStock() {
@@ -195,16 +207,20 @@ function emptyCart() {
 }
 
 function emptyStats() {
-  return { served: 0, left: 0, rejected: 0, revenue: 0, spent: 0, upgrades: 0 };
+  return { served: 0, left: 0, rejected: 0, revenue: 0, spent: 0, upgrades: 0, interest: 0, loanPaid: 0, loanMissed: 0 };
 }
 
 function emptyUp() {
-  return { cheese: 0, fries: 0, drinks: 0, tables: 0, freezer: 0, stove: 0, fryer: 0, soda: 0, warm: 0, bell: 0 };
+  return { cheese: 0, fries: 0, drinks: 0, tables: 0, freezer: 0, stove: 0, fryer: 0, soda: 0, warm: 0, bell: 0, double: 0 };
+}
+
+function newBank() {
+  return { balance: 0, loans: [], score: 600, history: [], nextLoanId: 1 };
 }
 
 // ---------- حالة اللعبة ----------
 const game = {
-  scene: "loading",          // loading / menu / counter / kitchen / sides / laptop / results
+  scene: "loading",          // loading / menu / counter / kitchen / sides / laptop / book / results
   loading: null,
   started: false,
   resumeScene: "counter",
@@ -212,20 +228,20 @@ const game = {
   cash: 1500,
   day: 1,
   minutes: DAY_START,
-  customer: null,
-  ticket: null,
+  customers: [null, null],   // الزباين اللي على الكاونتر (واحد أو اتنين)
   nextOrderNumber: 1,
   spawnTimer: 2,
   lastLook: -1,
   stock: defaultStock(),
   up: emptyUp(),             // مستويات التطويرات
-  plate: [],
-  pending: 0,
+  sel: 0,                    // الطلب المتحدد (طبق وصينية)
+  plates: [[], []],
+  pendings: [0, 0],          // طبقات لسه بتطير للطبق
   grill: [null, null, null],
   fryer: [null, null],
   soda: null,                // الكوباية اللي في ماكينة المشروبات
-  tray: [],
-  trayPending: 0,
+  trays: [[], []],
+  trayPendings: [0, 0],
   diners: [],                // الزباين اللي بياكلوا على الترابيزات
   reviews: [],
   ratingSum: 0,
@@ -235,10 +251,13 @@ const game = {
   freezerOpen: 0,
   cart: emptyCart(),
   laptopTab: "home",
+  appT: 1,
+  bank: newBank(),
+  bankUI: { tab: "account", amountIdx: 1, loanIdx: 1, termIdx: 1 },
+  shopPage: 0,
   bookPage: 0,
   unreadReviews: 0,
   history: [],
-  shopPage: 0,
   deliveries: [],
   deliveryCount: 0,
   stats: emptyStats(),
@@ -250,6 +269,18 @@ const game = {
 };
 
 // ---------- دوال مساعدة ----------
+
+function slotCount() {
+  return 1 + game.up.double;
+}
+
+function layout() {
+  return SLOT_LAYOUTS[slotCount()];
+}
+
+function selSlot() {
+  return Math.min(game.sel, slotCount() - 1);
+}
 
 function isInside(box, point) {
   return (
@@ -264,6 +295,10 @@ function getMousePos(event) {
     x: (event.clientX - rect.left) * (canvas.width / rect.width),
     y: (event.clientY - rect.top) * (canvas.height / rect.height)
   };
+}
+
+function pickOne(list) {
+  return list[Math.floor(Math.random() * list.length)];
 }
 
 function showMessage(text, color) {
@@ -303,6 +338,158 @@ function startLoading(next, dur) {
   game.scene = "loading";
 }
 
+// ---------- البنك ----------
+
+function bankLog(type, amount) {
+  game.bank.history.unshift({ day: game.day, type: type, amount: amount, balance: game.bank.balance });
+  if (game.bank.history.length > 20) {
+    game.bank.history.pop();
+  }
+}
+
+function totalFunds() {
+  return game.cash + game.bank.balance;
+}
+
+function canPay(amount) {
+  return totalFunds() >= amount;
+}
+
+// الدفع بيبدأ من الكاش وبعدين من البنك (زي الكارت)
+function pay(amount, label) {
+  const fromCash = Math.min(game.cash, amount);
+  game.cash = game.cash - fromCash;
+  const rest = amount - fromCash;
+  if (rest > 0) {
+    game.bank.balance = game.bank.balance - rest;
+    bankLog("دفع بالبطاقة: " + label, -rest);
+  }
+}
+
+// خصم تلقائي (للأقساط): من البنك الأول وبعدين الكاش
+function takeFunds(amount) {
+  if (totalFunds() < amount) {
+    return false;
+  }
+  const fromBank = Math.min(game.bank.balance, amount);
+  game.bank.balance = game.bank.balance - fromBank;
+  game.cash = game.cash - (amount - fromBank);
+  return true;
+}
+
+function maxLoan() {
+  const s = game.bank.score;
+  if (s >= 750) {
+    return 10000;
+  }
+  if (s >= 650) {
+    return 5000;
+  }
+  if (s >= 500) {
+    return 2000;
+  }
+  return 500;
+}
+
+function bankDeposit() {
+  const amount = BANK_AMOUNTS[game.bankUI.amountIdx];
+  if (game.cash < amount) {
+    denyClick("الكاش مش كفاية للإيداع");
+    return;
+  }
+  game.cash = game.cash - amount;
+  game.bank.balance = game.bank.balance + amount;
+  bankLog("إيداع", amount);
+  playSound("chaching");
+  showMessage("اتودع " + amount + " EGP في البنك", "#8fdc5a");
+  saveGame(false);
+}
+
+function bankWithdraw() {
+  const amount = BANK_AMOUNTS[game.bankUI.amountIdx];
+  if (game.bank.balance < amount) {
+    denyClick("رصيد البنك مش كفاية");
+    return;
+  }
+  game.bank.balance = game.bank.balance - amount;
+  game.cash = game.cash + amount;
+  bankLog("سحب", -amount);
+  playSound("chaching");
+  showMessage("سحبت " + amount + " EGP", "#8fdc5a");
+  saveGame(false);
+}
+
+function takeLoan() {
+  const b = game.bank;
+  const amount = LOAN_AMOUNTS[game.bankUI.loanIdx];
+  const term = LOAN_TERMS[game.bankUI.termIdx];
+  if (b.loans.length >= 2) {
+    denyClick("عندك قرضين شغالين، سدد الأول");
+    return;
+  }
+  if (amount > maxLoan()) {
+    denyClick("أقصى قرض ليك " + maxLoan() + " EGP");
+    return;
+  }
+  const owed = Math.round(amount * (1 + LOAN_RATE));
+  const id = b.nextLoanId;
+  b.nextLoanId = id + 1;
+  b.loans.push({ id: id, principal: amount, owed: owed, daily: Math.ceil(owed / term), daysLeft: term });
+  b.balance = b.balance + amount;
+  bankLog("قرض رقم " + id, amount);
+  playSound("chaching");
+  showMessage("اتحول " + amount + " EGP لحساب البنك", "#8fdc5a");
+  saveGame(false);
+}
+
+function repayLoan(loan) {
+  if (!takeFunds(loan.owed)) {
+    denyClick("فلوسك مش كفاية لسداد القرض");
+    return;
+  }
+  game.bank.loans.splice(game.bank.loans.indexOf(loan), 1);
+  game.bank.score = Math.min(850, game.bank.score + 10);
+  bankLog("سداد قرض رقم " + loan.id, -loan.owed);
+  playSound("chaching");
+  showMessage("سددت القرض كله", "#8fdc5a");
+  saveGame(false);
+}
+
+// آخر اليوم: فايدة وأقساط
+function processBankDay() {
+  const b = game.bank;
+  const st = game.stats;
+  const interest = Math.floor(b.balance * BANK_INTEREST);
+  if (interest > 0) {
+    b.balance = b.balance + interest;
+    st.interest = interest;
+    bankLog("فايدة يومية", interest);
+  }
+  for (let i = b.loans.length - 1; i >= 0; i--) {
+    const L = b.loans[i];
+    const due = Math.min(L.daily, L.owed);
+    if (takeFunds(due)) {
+      L.owed = L.owed - due;
+      st.loanPaid = st.loanPaid + due;
+      b.score = Math.min(850, b.score + 5);
+      bankLog("قسط قرض رقم " + L.id, -due);
+    } else {
+      st.loanMissed = st.loanMissed + 1;
+      b.score = Math.max(300, b.score - 40);
+      const fee = Math.round(L.owed * 0.05);
+      L.owed = L.owed + fee;
+      bankLog("غرامة تأخير على قرض " + L.id + " (" + fee + ")", 0);
+    }
+    L.daysLeft = Math.max(0, L.daysLeft - 1);
+    if (L.owed <= 0) {
+      b.loans.splice(i, 1);
+      bankLog("تم سداد قرض رقم " + L.id, 0);
+    } else if (L.daysLeft === 0) {
+      L.daily = L.owed;
+    }
+  }
+}
+
 // ---------- التطويرات ----------
 
 function freezerCap() {
@@ -324,9 +511,6 @@ function sodaFillTime() {
 // حالة زرار الشراء لكل تطوير
 function upgradeStatus(u) {
   const lvl = game.up[u.key] === undefined ? 0 : game.up[u.key];
-  if (u.max === 0) {
-    return { label: "قريباً", ok: false };
-  }
   if (lvl >= u.max) {
     return { label: "تم", ok: false };
   }
@@ -334,12 +518,12 @@ function upgradeStatus(u) {
     return { label: "مقفول", ok: false };
   }
   const cost = u.prices[lvl];
-  return { label: cost + " EGP", ok: game.cash >= cost, cost: cost };
+  return { label: cost + " EGP", ok: canPay(cost), cost: cost };
 }
 
 function buyUpgrade(u) {
   const st = upgradeStatus(u);
-  if (st.label === "تم" || st.label === "قريباً") {
+  if (st.label === "تم") {
     return;
   }
   if (st.label === "مقفول") {
@@ -351,7 +535,7 @@ function buyUpgrade(u) {
     denyClick("فلوسك مش كفاية!");
     return;
   }
-  game.cash = game.cash - st.cost;
+  pay(st.cost, u.name);
   game.stats.upgrades = game.stats.upgrades + st.cost;
   game.up[u.key] = game.up[u.key] + 1;
   // هدية مكونات لما تفتح صنف جديد
@@ -380,10 +564,6 @@ function ratingFactor() {
   return avg === null ? 1 : 1.3 - 0.06 * avg;
 }
 
-function pickOne(list) {
-  return list[Math.floor(Math.random() * list.length)];
-}
-
 // problem = سبب المشكلة (لو فيه)، dined = قعد وأكل على ترابيزة
 function addReview(look, stars, problem, dined) {
   let text;
@@ -394,7 +574,7 @@ function addReview(look, stars, problem, dined) {
   } else {
     text = pickOne(REVIEW_TEXTS[stars]);
   }
-  game.reviews.unshift({ name: CHARACTER_NAMES[look.id], stars: stars, text: text, day: game.day });
+  game.reviews.unshift({ name: look.name, stars: stars, text: text, day: game.day });
   if (game.reviews.length > 30) {
     game.reviews.pop();
   }
@@ -436,6 +616,7 @@ function saveGame(forNextDay) {
       minutes: forNextDay ? DAY_START : game.minutes,
       stock: game.stock,
       up: game.up,
+      bank: game.bank,
       reviews: game.reviews,
       ratingSum: game.ratingSum,
       ratingCount: game.ratingCount,
@@ -464,6 +645,7 @@ function loadGame() {
   game.nextOrderNumber = d.nextOrderNumber || 1;
   game.stock = Object.assign(defaultStock(), d.stock);
   game.up = Object.assign(emptyUp(), d.up);
+  game.bank = Object.assign(newBank(), d.bank);
   game.reviews = d.reviews || [];
   game.ratingSum = d.ratingSum || 0;
   game.ratingCount = d.ratingCount || 0;
@@ -484,16 +666,16 @@ function loadGame() {
 
 function startDay() {
   game.minutes = DAY_START;
-  game.customer = null;
-  game.ticket = null;
+  game.customers = [null, null];
   game.spawnTimer = 2;
-  game.plate = [];
-  game.pending = 0;
+  game.sel = 0;
+  game.plates = [[], []];
+  game.pendings = [0, 0];
   game.grill = [null, null, null];
   game.fryer = [null, null];
   game.soda = null;
-  game.tray = [];
-  game.trayPending = 0;
+  game.trays = [[], []];
+  game.trayPendings = [0, 0];
   game.diners = [];
   game.flyers = [];
   game.stream = null;
@@ -509,13 +691,14 @@ function newGame() {
   game.nextOrderNumber = 1;
   game.stock = defaultStock();
   game.up = emptyUp();
+  game.bank = newBank();
   game.reviews = [];
   game.ratingSum = 0;
   game.ratingCount = 0;
-  game.cart = emptyCart();
-  game.shopPage = 0;
   game.history = [];
   game.unreadReviews = 0;
+  game.cart = emptyCart();
+  game.shopPage = 0;
   game.deliveries = [];
   game.deliveryCount = 0;
   game.started = true;
@@ -533,7 +716,7 @@ function onNewGame() {
     newGame();
     saveGame(false);
     playSound("start");
-  }, 1.6);
+  }, 1.8);
 }
 
 function onContinue() {
@@ -547,18 +730,20 @@ function onContinue() {
       } else {
         game.scene = "menu";
       }
-    }, 1.6);
+    }, 1.8);
   }
 }
 
 function endDay() {
-  if (game.customer !== null) {
-    game.stats.left = game.stats.left + 1;
-    addReview(game.customer.look, 1, "left", false);
+  for (let i = 0; i < game.customers.length; i++) {
+    const c = game.customers[i];
+    if (c !== null) {
+      game.stats.left = game.stats.left + 1;
+      addReview(c.look, 1, "left", false);
+    }
   }
-  game.customer = null;
-  game.ticket = null;
-  // سجل اليوم في التقارير
+  game.customers = [null, null];
+  processBankDay();
   const st = game.stats;
   game.history.push({
     day: game.day, served: st.served, left: st.left, rejected: st.rejected,
@@ -580,20 +765,6 @@ function nextDay() {
 
 // ---------- الزبون والطلب ----------
 
-const SAUCE_KEYS = ["ketchup", "mayo", "mustard"];
-
-// كل زبون ليه رأي في الصوص: نوع معين، أو من غير صوص، أو "أي صوص" (براحتك)
-function pickSauceRule() {
-  const r = Math.random();
-  if (r < 0.45) {
-    return pickOne(SAUCE_KEYS);
-  }
-  if (r < 0.7) {
-    return "none";
-  }
-  return "any";
-}
-
 function sauceLabel(key) {
   for (let i = 0; i < SAUCES.length; i++) {
     if (SAUCES[i].key === key) {
@@ -603,25 +774,20 @@ function sauceLabel(key) {
   return "";
 }
 
+// الزبون يا بيختار صوص معين يا من غير صوص خالص (مفيش "أي صوص")
+function pickSauceRule() {
+  return Math.random() < 0.7 ? pickOne(SAUCE_KEYS) : "none";
+}
+
 function sauceNote(rule) {
-  if (rule === "none") {
-    return " (من غير صوص)";
-  }
-  if (rule === "any") {
-    return " (أي صوص)";
-  }
-  return " (" + sauceLabel(rule) + ")";
+  return rule === "none" ? " (من غير صوص)" : " (" + sauceLabel(rule) + ")";
 }
 
 // ترتيب البرجر المطلوب كنص للتذكرة
 function recipeHintFor(item) {
   const core = MENU[item.id].recipe;
   const parts = [LAYER_NAMES[core[0]]];
-  if (item.sauce === "none") {
-    // مفيش صوص
-  } else if (item.sauce === "any") {
-    parts.push("(صوص)");
-  } else {
+  if (item.sauce !== "none") {
     parts.push(sauceLabel(item.sauce));
   }
   for (let i = 1; i < core.length; i++) {
@@ -649,7 +815,16 @@ function makeOrder() {
   return { items: items, price: price, lines: lines, text: lines.join(" + ") };
 }
 
-function spawnCustomer() {
+function freeCustomerSlot() {
+  for (let i = 0; i < slotCount(); i++) {
+    if (game.customers[i] === null) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+function spawnCustomer(slot) {
   let idx = Math.floor(Math.random() * CHARACTERS.length);
   while (idx === game.lastLook) {
     idx = Math.floor(Math.random() * CHARACTERS.length);
@@ -657,21 +832,25 @@ function spawnCustomer() {
   game.lastLook = idx;
   const look = CHARACTERS[idx];
   const order = makeOrder();
-  const patience = MAX_PATIENCE * look.mul + 12 * (order.items.length - 1);
-  game.customer = { state: "ordering", look: look, maxPatience: patience, patience: patience, order: order, enter: 0 };
+  const patience = MAX_PATIENCE * look.mul + 12 * (order.items.length - 1) + 12;
+  game.customers[slot] = {
+    state: "ordering", look: look, maxPatience: patience, patience: patience, order: order, enter: 0,
+    dlg: { lines: buildDialogue(look, order), idx: 0, t: 0 }, ticket: null
+  };
   playSound("bell");
 }
 
-function customerLeaves() {
-  game.customer = null;
-  game.ticket = null;
+function customerLeaves(i) {
+  game.customers[i] = null;
   game.spawnTimer = (3 + Math.random() * 4) * ratingFactor();
 }
 
-function takeOrder() {
-  game.ticket = { number: game.nextOrderNumber, order: game.customer.order };
+function takeOrder(i) {
+  const c = game.customers[i];
+  c.ticket = { number: game.nextOrderNumber, order: c.order };
   game.nextOrderNumber = game.nextOrderNumber + 1;
-  game.customer.state = "waiting";
+  c.dlg.idx = c.dlg.lines.length - 1;
+  c.state = "waiting";
   playSound("pop");
 }
 
@@ -697,12 +876,16 @@ function getFryDoneness(cookTime) {
   return "burnt";
 }
 
-function platePending() {
-  return game.plate.length + game.pending;
+function platePending(i) {
+  return game.plates[i].length + game.pendings[i];
 }
 
-function plateTop() {
-  return burgerTopY(game.plate, PLATE_BASE_Y, 0.95);
+function plateX(i) {
+  return layout().plate[i];
+}
+
+function plateTop(i) {
+  return burgerTopY(game.plates[i], PLATE_BASE_Y, layout().plateScale);
 }
 
 function addFlyer(f) {
@@ -720,24 +903,25 @@ function freeSlot(list, limit) {
   return -1;
 }
 
-// رغيف أو جبنة بيطيروا من الصندوق للطبق
+// رغيف أو جبنة بيطيروا من الصندوق للطبق المتحدد
 function addLayerFromBin(type, kind, bin, stockKey, label) {
+  const idx = selSlot();
   if (game.stock[stockKey] <= 0) {
     denyClick(label + " خلص! اطلب من اللابتوب");
     return;
   }
-  if (platePending() >= 6) {
+  if (platePending(idx) >= 6) {
     denyClick("الطبق مليان!");
     return;
   }
   game.stock[stockKey] = game.stock[stockKey] - 1;
-  game.pending = game.pending + 1;
+  game.pendings[idx] = game.pendings[idx] + 1;
   playSound("pop");
   addFlyer({
-    kind: kind, x0: bin.x + bin.w / 2, y0: bin.y + 60, x1: PLATE_X, y1: plateTop() - 10, dur: 0.4,
+    kind: kind, x0: bin.x + bin.w / 2, y0: bin.y + 60, x1: plateX(idx), y1: plateTop(idx) - 10, dur: 0.4,
     onDone: function () {
-      game.plate.push({ type: type });
-      game.pending = game.pending - 1;
+      game.plates[idx].push({ type: type });
+      game.pendings[idx] = game.pendings[idx] - 1;
     }
   });
 }
@@ -755,6 +939,7 @@ function onCheeseClick() {
 }
 
 function onSauceClick(s) {
+  const idx = selSlot();
   if (game.stream !== null) {
     return;
   }
@@ -762,18 +947,18 @@ function onSauceClick(s) {
     denyClick(s.label + " خلص! اطلب من اللابتوب");
     return;
   }
-  if (platePending() >= 6) {
+  if (platePending(idx) >= 6) {
     denyClick("الطبق مليان!");
     return;
   }
   game.stock[s.key] = game.stock[s.key] - 1;
-  game.pending = game.pending + 1;
+  game.pendings[idx] = game.pendings[idx] + 1;
   playSound("squirt");
   game.stream = {
-    key: s.key, color: s.color, x0: s.x, y0: 206, x1: PLATE_X, y1: plateTop() - 4, t: 0, dur: 0.8,
+    key: s.key, color: s.color, x0: s.x, y0: 206, x1: plateX(idx), y1: plateTop(idx) - 4, t: 0, dur: 0.8,
     onDone: function () {
-      game.plate.push({ type: "sauce", key: s.key, color: s.color });
-      game.pending = game.pending - 1;
+      game.plates[idx].push({ type: "sauce", key: s.key, color: s.color });
+      game.pendings[idx] = game.pendings[idx] - 1;
     }
   };
 }
@@ -804,57 +989,65 @@ function onFreezerClick() {
 
 function onSlotClick(i) {
   const p = game.grill[i];
+  const idx = selSlot();
   if (p === null || p.arriving) {
     return;
   }
-  if (platePending() >= 6) {
+  if (platePending(idx) >= 6) {
     denyClick("الطبق مليان!");
     return;
   }
   const done = getDoneness(p.cook);
   game.grill[i] = null;
-  game.pending = game.pending + 1;
+  game.pendings[idx] = game.pendings[idx] + 1;
   playSound("pop");
   addFlyer({
-    kind: "patty", doneness: done, x0: STOVE_SLOTS[i].x, y0: STOVE_SLOTS[i].y, x1: PLATE_X, y1: plateTop() - 12, dur: 0.45,
+    kind: "patty", doneness: done, x0: STOVE_SLOTS[i].x, y0: STOVE_SLOTS[i].y, x1: plateX(idx), y1: plateTop(idx) - 12, dur: 0.45,
     onDone: function () {
-      game.plate.push({ type: "patty", doneness: done });
-      game.pending = game.pending - 1;
+      game.plates[idx].push({ type: "patty", doneness: done });
+      game.pendings[idx] = game.pendings[idx] - 1;
     }
   });
 }
 
 function discardPlate() {
-  if (game.pending > 0) {
+  const idx = selSlot();
+  if (game.pendings[idx] > 0) {
     return;
   }
-  game.plate = [];
+  game.plates[idx] = [];
 }
 
-function trayFull() {
-  return game.tray.length + game.trayPending >= TRAY_MAX;
+function trayFull(i) {
+  return game.trays[i].length + game.trayPendings[i] >= TRAY_MAX;
 }
 
 function sendToTray() {
-  if (game.pending > 0) {
+  const idx = selSlot();
+  if (game.pendings[idx] > 0) {
     return;
   }
-  if (game.plate.length === 0) {
+  if (game.plates[idx].length === 0) {
     denyClick("الطبق فاضي!");
     return;
   }
-  if (trayFull()) {
+  if (trayFull(idx)) {
     denyClick("الصينية مليانة!");
     return;
   }
-  game.tray.push({ kind: "burger", layers: game.plate });
-  game.plate = [];
+  game.trays[idx].push({ kind: "burger", layers: game.plates[idx] });
+  game.plates[idx] = [];
   playSound("pop");
-  showMessage("البرجر اتحط على الصينية", "#8fdc5a");
+  showMessage(slotCount() === 2 ? "البرجر اتحط على صينية طلب " + (idx + 1) : "البرجر اتحط على الصينية", "#8fdc5a");
 }
 
-function clearTray() {
-  game.tray = [];
+function clearTray(i) {
+  game.trays[i] = [];
+}
+
+function selectSlot(i) {
+  game.sel = i;
+  playSound("click");
 }
 
 // ---------- محطة البطاطس والمشروبات ----------
@@ -887,22 +1080,23 @@ function onPotatoClick() {
 
 function onFryerClick(i) {
   const p = game.fryer[i];
+  const idx = selSlot();
   if (p === null || p.arriving) {
     return;
   }
-  if (trayFull()) {
+  if (trayFull(idx)) {
     denyClick("الصينية مليانة!");
     return;
   }
   const done = getFryDoneness(p.cook);
   game.fryer[i] = null;
-  game.trayPending = game.trayPending + 1;
+  game.trayPendings[idx] = game.trayPendings[idx] + 1;
   playSound("pop");
   addFlyer({
     kind: "fries", doneness: done, x0: FRYER_SLOTS[i].x, y0: FRYER_SLOTS[i].y, x1: TRAY_PREVIEW.x, y1: TRAY_PREVIEW.y - 20, dur: 0.5,
     onDone: function () {
-      game.tray.push({ kind: "fries", doneness: done });
-      game.trayPending = game.trayPending - 1;
+      game.trays[idx].push({ kind: "fries", doneness: done });
+      game.trayPendings[idx] = game.trayPendings[idx] - 1;
     }
   });
 }
@@ -951,6 +1145,7 @@ function onFlavorClick(key, label) {
 
 function onCupPickup() {
   const s = game.soda;
+  const idx = selSlot();
   if (s === null) {
     return;
   }
@@ -962,19 +1157,19 @@ function onCupPickup() {
     denyClick("استنى لحد ما الكوباية تتملي");
     return;
   }
-  if (trayFull()) {
+  if (trayFull(idx)) {
     denyClick("الصينية مليانة!");
     return;
   }
   const drink = s.drink;
   game.soda = null;
-  game.trayPending = game.trayPending + 1;
+  game.trayPendings[idx] = game.trayPendings[idx] + 1;
   playSound("pop");
   addFlyer({
     kind: "cup", drink: drink, x0: SODA.cupSlot.x + 60, y0: SODA.cupSlot.y + 60, x1: TRAY_PREVIEW.x, y1: TRAY_PREVIEW.y - 20, dur: 0.5,
     onDone: function () {
-      game.tray.push({ kind: "drink", drink: drink });
-      game.trayPending = game.trayPending - 1;
+      game.trays[idx].push({ kind: "drink", drink: drink });
+      game.trayPendings[idx] = game.trayPendings[idx] - 1;
     }
   });
 }
@@ -998,13 +1193,12 @@ function judgeBurger(layers, item) {
   if (sauces.length > 1 || (sauces.length === 1 && layers[1].type !== "sauce")) {
     return "wrong";
   }
-  if (item.sauce === "none" && sauces.length > 0) {
-    return "wrongsauce";
-  }
-  if (item.sauce !== "none" && item.sauce !== "any") {
-    if (sauces.length !== 1 || sauces[0].key !== item.sauce) {
+  if (item.sauce === "none") {
+    if (sauces.length > 0) {
       return "wrongsauce";
     }
+  } else if (sauces.length !== 1 || sauces[0].key !== item.sauce) {
+    return "wrongsauce";
   }
   const patty = rest[1];
   if (patty.doneness === "raw") {
@@ -1089,10 +1283,10 @@ function freeTable() {
   return -1;
 }
 
-function serveCustomer() {
-  const c = game.customer;
+function serveCustomer(i) {
+  const c = game.customers[i];
   const ratio = c.patience / c.maxPatience;
-  const result = evaluateOrder(c.order, game.tray);
+  const result = evaluateOrder(c.order, game.trays[i]);
 
   game.cash = game.cash + result.paid;
   game.stats.revenue = game.stats.revenue + result.paid;
@@ -1115,8 +1309,8 @@ function serveCustomer() {
     playSound(result.paid > 0 ? "cash" : "buzz");
     addReview(c.look, result.paid > 0 ? 2 : 1, result.problem, false);
   }
-  game.tray = [];
-  customerLeaves();
+  game.trays[i] = [];
+  customerLeaves(i);
 }
 
 // ---------- طلب المكونات من اللابتوب ----------
@@ -1167,7 +1361,7 @@ function orderIngredients() {
     denyClick("اختار الكميات الأول");
     return;
   }
-  if (total > game.cash) {
+  if (!canPay(total)) {
     denyClick("فلوسك مش كفاية!");
     return;
   }
@@ -1176,7 +1370,7 @@ function orderIngredients() {
     denyClick("مفيش مكان في الفريزر! (السعة " + freezerCap() + ")");
     return;
   }
-  game.cash = game.cash - total;
+  pay(total, "طلب مكونات");
   game.stats.spent = game.stats.spent + total;
   game.deliveryCount = game.deliveryCount + 1;
   const items = {};
@@ -1200,7 +1394,38 @@ function deliverOrder(d) {
   playSound("delivery");
 }
 
+// ---------- تطبيقات اللابتوب ----------
+
+function openApp(a) {
+  if (a.locked) {
+    showMessage("التوظيف جاي في ميلستون قدام", "#f2b134");
+    return;
+  }
+  game.laptopTab = a.key;
+  game.appT = 0;
+  if (a.key === "reviews") {
+    game.unreadReviews = 0;
+  }
+  playSound("click");
+}
+
+// صفحات كتاب المنيو (بتظهر بس الحاجات اللي انت فتحتها)
+function bookSpreads() {
+  const spreads = ["burgers", "sauces"];
+  if (game.up.fries > 0) {
+    spreads.push("sides");
+  }
+  if (game.up.drinks > 0) {
+    spreads.push("drinks");
+  }
+  return spreads;
+}
+
 // ---------- الأماكن اللي تتضغط (hotspots) ----------
+
+function chipColor(active) {
+  return { color: active ? "#f2b134" : "#3a5a6b", textColor: active ? "#2b1d14" : "#fff3df" };
+}
 
 function getHotspots() {
   const list = [];
@@ -1245,40 +1470,45 @@ function getHotspots() {
 
   if (game.scene === "results") {
     list.push({
-      name: "nextDay", box: { x: 380, y: 560, w: 250, h: 56 }, label: "اليوم الجاي",
+      name: "nextDay", box: { x: 380, y: 600, w: 250, h: 56 }, label: "اليوم الجاي",
       color: "#5aa335", textColor: "#10260a", action: nextDay
     });
     list.push({
-      name: "toMenu", box: { x: 660, y: 560, w: 250, h: 56 }, label: "القائمة الرئيسية",
+      name: "toMenu", box: { x: 660, y: 600, w: 250, h: 56 }, label: "القائمة الرئيسية",
       color: "#6b7580", textColor: "#fff3df", action: function () { game.resumeScene = "results"; game.scene = "menu"; }
     });
     return list;
   }
 
   if (game.scene === "counter") {
-    list.push({ name: "laptop", box: laptopScreenBox, action: function () { game.laptopTab = "home"; game.scene = "laptop"; } });
+    list.push({ name: "laptop", box: laptopScreenBox, action: function () { game.laptopTab = "home"; game.appT = 1; game.scene = "laptop"; } });
     list.push({ name: "book", box: BOOK_BOX, action: function () { game.bookPage = 0; game.scene = "book"; playSound("page"); } });
     list.push({
       name: "toKitchen", box: toKitchenBox, label: "لف للمطبخ",
       color: "#d62f2a", textColor: "#fff3df", action: function () { game.scene = "kitchen"; }
     });
-    if (game.customer !== null && game.customer.state === "ordering") {
-      list.push({
-        name: "takeOrder", box: takeOrderBox, label: "خُد الطلب",
-        color: "#5aa335", textColor: "#10260a", action: takeOrder
-      });
-    }
-    if (game.customer !== null && game.customer.state === "waiting" && game.tray.length > 0) {
-      list.push({
-        name: "serve", box: takeOrderBox, label: "سلّم الطلب",
-        color: "#f2b134", textColor: "#2b1d14", action: serveCustomer
-      });
-    }
-    if (game.tray.length > 0) {
-      list.push({
-        name: "clearTray", box: clearTrayBox, label: "فضّي الصينية",
-        color: "#6b7580", textColor: "#fff3df", action: clearTray
-      });
+    const two = slotCount() === 2;
+    for (let i = 0; i < slotCount(); i++) {
+      const c = game.customers[i];
+      const tag = two ? " " + (i + 1) : "";
+      if (c !== null && c.state === "ordering") {
+        list.push({
+          name: "takeOrder-" + i, box: slotActionBox(i), label: "خُد الطلب" + tag,
+          color: "#5aa335", textColor: "#10260a", action: (function (k) { return function () { takeOrder(k); }; })(i)
+        });
+      }
+      if (c !== null && c.state === "waiting" && game.trays[i].length > 0) {
+        list.push({
+          name: "serve-" + i, box: slotActionBox(i), label: "سلّم الطلب" + tag,
+          color: "#f2b134", textColor: "#2b1d14", action: (function (k) { return function () { serveCustomer(k); }; })(i)
+        });
+      }
+      if (game.trays[i].length > 0) {
+        list.push({
+          name: "clearTray-" + i, box: clearTrayBox(i), label: "فضّي", size: 13,
+          color: "#6b7580", textColor: "#fff3df", action: (function (k) { return function () { clearTray(k); }; })(i)
+        });
+      }
     }
   } else if (game.scene === "kitchen") {
     list.push({
@@ -1297,12 +1527,25 @@ function getHotspots() {
       name: "toSides", box: toSidesBox, label: "محطة البطاطس والمشروبات",
       color: "#3d6fbf", textColor: "#fff3df", action: function () { game.scene = "sides"; }
     });
+    if (slotCount() === 2) {
+      for (let i = 0; i < 2; i++) {
+        const cc = chipColor(game.sel === i);
+        list.push({
+          name: "target-" + i, box: { x: 282 + i * 76, y: 660, w: 72, h: 46 }, label: "طلب " + (i + 1), size: 14,
+          color: cc.color, textColor: cc.textColor, action: (function (k) { return function () { selectSlot(k); }; })(i)
+        });
+        list.push({
+          name: "plate-" + i, box: { x: plateX(i) - 70, y: 540, w: 140, h: 100 },
+          action: (function (k) { return function () { selectSlot(k); }; })(i)
+        });
+      }
+    }
     list.push({ name: "bin-bun", box: BUN_BIN, action: onBunClick });
     list.push({ name: "bin-cheese", box: CHEESE_BIN, action: onCheeseClick });
     list.push({ name: "freezer", box: FREEZER_BOX, action: onFreezerClick });
     SAUCES.forEach(function (s) {
       list.push({
-        name: "sauce-" + s.key, box: { x: s.x - 36, y: 80, w: 72, h: 150 },
+        name: "sauce-" + s.key, box: { x: s.x - 36, y: 80, w: 72, h: 180 },
         action: function () { onSauceClick(s); }
       });
     });
@@ -1324,6 +1567,15 @@ function getHotspots() {
       name: "sidesCounter", box: sidesToCounterBox, label: "روح للكاونتر",
       color: "#5aa335", textColor: "#10260a", action: function () { game.scene = "counter"; }
     });
+    if (slotCount() === 2) {
+      for (let i = 0; i < 2; i++) {
+        const cc = chipColor(game.sel === i);
+        list.push({
+          name: "target-" + i, box: { x: 545 + i * 130, y: 660, w: 120, h: 46 }, label: "لطلب " + (i + 1), size: 17,
+          color: cc.color, textColor: cc.textColor, action: (function (k) { return function () { selectSlot(k); }; })(i)
+        });
+      }
+    }
     list.push({ name: "bin-potato", box: POTATO_BIN, action: onPotatoClick });
     FRYER_SLOTS.forEach(function (s, i) {
       const p = game.fryer[i];
@@ -1337,11 +1589,11 @@ function getHotspots() {
     list.push({ name: "soda-stack", box: SODA.stack, action: onCupStackClick });
     list.push({ name: "soda-cup", box: SODA.cupSlot, action: onCupPickup });
     list.push({
-      name: "soda-cola", box: SODA.colaBtn, label: "كولا",
+      name: "soda-cola", box: SODA.colaBtn, label: "كولا", size: 17,
       color: "#4a2615", textColor: "#fff3df", action: function () { onFlavorClick("cola", "الكولا"); }
     });
     list.push({
-      name: "soda-orange", box: SODA.orangeBtn, label: "برتقان",
+      name: "soda-orange", box: SODA.orangeBtn, label: "برتقان", size: 17,
       color: "#f08a1c", textColor: "#2b1d14", action: function () { onFlavorClick("orange", "العصير"); }
     });
   } else if (game.scene === "book") {
@@ -1385,13 +1637,13 @@ function getHotspots() {
       if (tab === "shop") {
         if (game.shopPage > 0) {
           list.push({
-            name: "prevPage", box: { x: 330, y: 166, w: 110, h: 36 }, label: "السابق",
+            name: "prevPage", box: { x: 330, y: 166, w: 110, h: 34 }, label: "السابق", size: 17,
             color: "#6b7580", textColor: "#fff3df", action: function () { game.shopPage = game.shopPage - 1; }
           });
         }
         if (game.shopPage < shopPageCount() - 1) {
           list.push({
-            name: "nextPage", box: { x: 450, y: 166, w: 110, h: 36 }, label: "التالي",
+            name: "nextPage", box: { x: 450, y: 166, w: 110, h: 34 }, label: "التالي", size: 17,
             color: "#6b7580", textColor: "#fff3df", action: function () { game.shopPage = game.shopPage + 1; }
           });
         }
@@ -1406,7 +1658,7 @@ function getHotspots() {
             color: "#5aa335", textColor: "#10260a", action: function () { changeCart(it.key, 1); }
           });
         });
-        const canOrder = cartTotal() > 0 && cartTotal() <= game.cash;
+        const canOrder = cartTotal() > 0 && canPay(cartTotal());
         list.push({
           name: "order", box: orderButtonBox, label: "اطلب",
           color: canOrder ? "#5aa335" : "#6b7580", textColor: canOrder ? "#10260a" : "#fff3df", action: orderIngredients
@@ -1421,6 +1673,60 @@ function getHotspots() {
             action: function () { buyUpgrade(u); }
           });
         });
+      } else if (tab === "bank") {
+        const ui = game.bankUI;
+        const subs = [["account", "حسابي"], ["loans", "القروض"], ["history", "السجل"]];
+        subs.forEach(function (s, i) {
+          const cc = chipColor(ui.tab === s[0]);
+          list.push({
+            name: "bank-sub-" + s[0], box: bankSubBox(i), label: s[1], size: 17, color: cc.color, textColor: cc.textColor,
+            action: function () { ui.tab = s[0]; }
+          });
+        });
+        if (ui.tab === "account") {
+          BANK_AMOUNTS.forEach(function (a, i) {
+            const cc = chipColor(ui.amountIdx === i);
+            list.push({
+              name: "bank-amount-" + i, box: bankAmountBox(i), label: String(a), size: 19, color: cc.color, textColor: cc.textColor,
+              action: function () { ui.amountIdx = i; }
+            });
+          });
+          list.push({
+            name: "bank-deposit", box: BANK_DEPOSIT_BOX, label: "إيداع في البنك", size: 20,
+            color: "#5aa335", textColor: "#10260a", action: bankDeposit
+          });
+          list.push({
+            name: "bank-withdraw", box: BANK_WITHDRAW_BOX, label: "سحب من البنك", size: 20,
+            color: "#3d6fbf", textColor: "#fff3df", action: bankWithdraw
+          });
+        } else if (ui.tab === "loans") {
+          LOAN_AMOUNTS.forEach(function (a, i) {
+            const cc = chipColor(ui.loanIdx === i);
+            list.push({
+              name: "loan-amount-" + i, box: loanAmountBox(i), label: String(a), size: 18, color: cc.color, textColor: cc.textColor,
+              action: function () { ui.loanIdx = i; }
+            });
+          });
+          LOAN_TERMS.forEach(function (t, i) {
+            const cc = chipColor(ui.termIdx === i);
+            list.push({
+              name: "loan-term-" + i, box: loanTermBox(i), label: t + " أيام", size: 17, color: cc.color, textColor: cc.textColor,
+              action: function () { ui.termIdx = i; }
+            });
+          });
+          list.push({
+            name: "loan-take", box: LOAN_TAKE_BOX, label: "خد القرض", size: 21,
+            color: "#5aa335", textColor: "#10260a", action: takeLoan
+          });
+          game.bank.loans.forEach(function (L, i) {
+            if (i < 3) {
+              list.push({
+                name: "loan-pay-" + i, box: loanPayBox(i), label: "سدد الكل", size: 14,
+                color: "#d62f2a", textColor: "#fff3df", action: function () { repayLoan(L); }
+              });
+            }
+          });
+        }
       }
     }
   }
@@ -1454,7 +1760,7 @@ function findHotspot(pos) {
 
 // ---------- التحديث والحلقة الرئيسية ----------
 
-// بيزود وقت الطبخ، وبيمنع الحرق لو التطوير مفتوح، وبيرن المنبه لما يستوي
+// بيزود وقت الطبخ، وبيمنع الحرق لو التطوير مفتوح، وبيرن المنبه لو اشتريته
 function tickCooking(p, dt, rawUntil, burntAfter, alertText, slotNumber) {
   p.cook = p.cook + dt;
   if (game.up.warm > 0 && p.cook > burntAfter - 0.05) {
@@ -1464,6 +1770,46 @@ function tickCooking(p, dt, rawUntil, burntAfter, alertText, slotNumber) {
     p.alerted = true;
     playSound("kitchenBell");
     showMessage(alertText + " (رقم " + slotNumber + ")", "#8fdc5a");
+  }
+}
+
+function updateCustomers(dt) {
+  let free = -1;
+  for (let i = 0; i < slotCount(); i++) {
+    const c = game.customers[i];
+    if (c === null) {
+      if (free === -1) {
+        free = i;
+      }
+      continue;
+    }
+    c.patience = c.patience - dt;
+    c.enter = Math.min(1, c.enter + dt * 1.8);
+    if (c.state === "ordering" && c.enter >= 1) {
+      const d = c.dlg;
+      d.t = d.t + dt;
+      if (d.idx < d.lines.length - 1 && d.t >= d.lines[d.idx].length / TALK_SPEED + 1.3) {
+        d.idx = d.idx + 1;
+        d.t = 0;
+        playSound("talk", c.look.voice);
+      }
+    }
+    if (c.patience <= 0) {
+      game.stats.left = game.stats.left + 1;
+      addReview(c.look, 1, "left", false);
+      customerLeaves(i);
+      showMessage(c.look.name + " زهق ومشي!", "#ff7a70");
+      if (free === -1) {
+        free = i;
+      }
+    }
+  }
+  if (free !== -1 && game.minutes < STOP_SPAWN_AT) {
+    game.spawnTimer = game.spawnTimer - dt;
+    if (game.spawnTimer <= 0) {
+      spawnCustomer(free);
+      playSound("talk", game.customers[free].look.voice);
+    }
   }
 }
 
@@ -1485,6 +1831,8 @@ function update(dt) {
     return;
   }
 
+  game.appT = game.appT + dt * 4;
+
   // الساعة
   game.minutes = game.minutes + dt * MIN_PER_SEC;
   if (game.minutes >= DAY_END) {
@@ -1499,24 +1847,7 @@ function update(dt) {
     saveGame(false);
   }
 
-  // الزبون
-  if (game.customer === null) {
-    if (game.minutes < STOP_SPAWN_AT) {
-      game.spawnTimer = game.spawnTimer - dt;
-      if (game.spawnTimer <= 0) {
-        spawnCustomer();
-      }
-    }
-  } else {
-    game.customer.patience = game.customer.patience - dt;
-    game.customer.enter = Math.min(1, (game.customer.enter === undefined ? 1 : game.customer.enter) + dt * 1.8);
-    if (game.customer.patience <= 0) {
-      game.stats.left = game.stats.left + 1;
-      addReview(game.customer.look, 1, "left", false);
-      customerLeaves();
-      showMessage("الزبون زهق ومشي!", "#ff7a70");
-    }
-  }
+  updateCustomers(dt);
 
   // الزباين اللي بياكلوا على الترابيزات
   for (let i = game.diners.length - 1; i >= 0; i--) {
@@ -1527,7 +1858,7 @@ function update(dt) {
       game.cash = game.cash + DINE_TIP;
       game.stats.revenue = game.stats.revenue + DINE_TIP;
       addReview(d.look, d.stars >= 5 ? 5 : d.stars + 1, null, true);
-      showMessage(CHARACTER_NAMES[d.look.id] + " خلص أكله وساب بقشيش +" + DINE_TIP + " EGP", "#8fdc5a");
+      showMessage(d.look.name + " خلص أكله وساب بقشيش +" + DINE_TIP + " EGP", "#8fdc5a");
       playSound("cash");
     }
   }
@@ -1676,8 +2007,18 @@ document.addEventListener("visibilitychange", function () {
   }
 });
 
+// أيقونة اللعبة (favicon) من اللوجو
+try {
+  const iconLink = document.createElement("link");
+  iconLink.rel = "icon";
+  iconLink.href = IMAGE_DATA.logo;
+  document.head.appendChild(iconLink);
+} catch (e) {
+  // مش مشكلة لو المتصفح مش بيدعم
+}
+
 game.loading = {
-  t: 0, dur: 2.6, tip: LOADING_TIPS[0],
+  t: 0, dur: 3.0, tip: LOADING_TIPS[0],
   next: function () { game.scene = "menu"; }
 };
 refreshSaveInfo();

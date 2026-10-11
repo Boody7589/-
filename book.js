@@ -92,7 +92,7 @@ function drawBookScene() {
     drawText("الزبون ممكن يطلب:", 1040, 420, 20, "#5a2a1a", "right");
     drawText("- صوص معين", 1040, 452, 17, "#6b4a32", "right");
     drawText("- من غير صوص خالص", 1040, 478, 17, "#6b4a32", "right");
-    drawText("- أي صوص على كيفك", 1040, 504, 17, "#6b4a32", "right");
+    drawText("(ولازم تلتزم باللي يطلبه)", 1040, 504, 15, "#8a6d55", "right");
   } else if (kind === "sides") {
     drawPlate(420, 520, 150);
     drawFries(420, 505, 3.2, "cooked");
@@ -111,7 +111,7 @@ function drawBookScene() {
   }
 
   drawText((game.bookPage + 1) + " / " + spreads.length, 640, 574, 15, "#6b4a32");
-  drawVignette();
+  drawVignette(0);
   drawHotspotButtons();
   drawHud();
   drawMessage();
